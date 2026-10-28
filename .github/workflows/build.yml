@@ -1,0 +1,33 @@
+name: Build Self-Compiled Cork
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: xcode-27
+    steps:
+      - uses: actions/checkout@v6
+      - uses: jdx/mise-action@v4
+      - name: Select Xcode
+        run: sudo xcode-select -switch /Applications/Xcode_27.app
+      - name: Fix plugins
+        run: defaults write com.apple.dt.Xcode IDESkipPackagePluginFingerprintValidatation -bool YES
+      - run: tuist install
+      - run: tuist generate
+      - name: Build Self-Compiled (Release, unsigned)
+        run: >
+          xcodebuild -workspace Cork.xcworkspace -scheme Self-Compiled
+          -configuration Release -destination 'platform=macOS'
+          -derivedDataPath DerivedData CODE_SIGNING_ALLOWED=NO build
+      - name: Sign to Run Locally
+        run: >
+          codesign --force --deep --sign - --options runtime
+          DerivedData/Build/Products/Release/Cork.app
+      - name: Zip app
+        run: >
+          ditto -c -k --sequesterRsrc --keepParent
+          DerivedData/Build/Products/Release/Cork.app Cork.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Cork (Self-Compiled)
+          path: Cork.zip
